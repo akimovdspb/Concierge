@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aigw-drm-agent — выжимка по проверке КБ</title>
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #305496;
+    --accent-soft: #eaf0fb;
+    --green-bg: #d1f0d7;
+    --green-text: #14532d;
+    --yellow-bg: #fde68a;
+    --yellow-text: #78350f;
+    --red-bg: #fecaca;
+    --red-text: #7f1d1d;
+    --gray-bg: #e5e7eb;
+    --gray-text: #374151;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #1f2937;
+      --accent: #60a5fa;
+      --accent-soft: #1e293b;
+      --green-bg: #14532d;
+      --green-text: #bbf7d0;
+      --yellow-bg: #78350f;
+      --yellow-text: #fde68a;
+      --red-bg: #7f1d1d;
+      --red-text: #fecaca;
+      --gray-bg: #374151;
+      --gray-text: #e5e7eb;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    font-size: 15px;
+  }
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  header {
+    margin-bottom: 24px;
+  }
+  h1 {
+    font-size: 28px;
+    line-height: 1.25;
+    margin: 0 0 8px;
+  }
+  h2 {
+    font-size: 20px;
+    margin: 36px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--accent);
+  }
+  h3 {
+    font-size: 16px;
+    margin: 20px 0 8px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .lead {
+    color: var(--muted);
+    margin: 0;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 20px 0 8px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .stat.green .value { color: var(--green-text); }
+  .stat.yellow .value { color: var(--yellow-text); }
+  .stat.red .value { color: var(--red-text); }
+  .stat.gray .value { color: var(--gray-text); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0 24px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+  }
+  .table-scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: .02em;
+    position: sticky;
+    top: 0;
+  }
+  tr:hover td { background: var(--accent-soft); }
+  td.num { font-family: var(--mono); text-align: center; width: 56px; color: var(--muted); }
+  td code, td .file {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  td ul { margin: 0; padding-left: 18px; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .badge.green  { background: var(--green-bg);  color: var(--green-text); }
+  .badge.yellow { background: var(--yellow-bg); color: var(--yellow-text); }
+  .badge.red    { background: var(--red-bg);    color: var(--red-text); }
+  .badge.gray   { background: var(--gray-bg);   color: var(--gray-text); }
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .legend-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .legend-item .badge { margin-bottom: 6px; }
+
+  nav.toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  nav.toc a {
+    display: inline-block;
+    padding: 6px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  nav.toc a:hover { border-color: var(--accent); }
+
+  details {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 8px 0;
+  }
+  details summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 8px 0 0; color: var(--muted); }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 22px; }
+    th, td { padding: 8px; font-size: 13px; }
+    td.num { width: 44px; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    .wrap { max-width: none; padding: 0; }
+    nav.toc { display: none; }
+    .card { box-shadow: none; break-inside: avoid; }
+    tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>aigw-drm-agent — выжимка по проверке КБ</h1>
+  <p class="lead">Цифровой привратник (консьерж) для клиентов банка. Сводка соответствия чек-листу КБ AI-агентов и МАС и Методике проведения интегральной оценки рисков AI-агентов (ч. 1, ред. 16.02).</p>
+  <p class="meta">Подготовлено Claude Opus 4.7 (Max-Thinking) по результатам анализа кода проекта.</p>
+
+  <nav class="toc">
+    <a href="#tldr">Кратко</a>
+    <a href="#checklist">Чек-лист (строки 58–68)</a>
+    <a href="#methodology">Методика (ч. 1)</a>
+    <a href="#legend">Легенда</a>
+    <a href="#how">Как читать</a>
+  </nav>
+</header>
+
+<!-- ============ TL;DR ============ -->
+<section id="tldr">
+  <h2>Кратко</h2>
+  <p>Агент архитектурно узкий: GigaChat выбирает один из 5 кодов маршрутизации, клиенту уходят только заранее заданные шаблонные тексты. Это снижает риски галлюцинаций, токсичности, дезинформации. Основной фокус замечаний — группа «Безопасность данных и систем»: в runtime не подключены санитизация и цензор, нет детектора промпт-атак, нет контроля токенов и лимита попыток, нет confirm-step перед внешним вызовом.</p>
+
+  <div class="summary">
+    <div class="stat green"><div class="label">Соответствует</div><div class="value">2 / 11</div><div class="meta">строки 59, 65 чек-листа</div></div>
+    <div class="stat yellow"><div class="label">Частично</div><div class="value">1 / 11</div><div class="meta">строка 66 чек-листа</div></div>
+    <div class="stat red"><div class="label">Не соответствует</div><div class="value">8 / 11</div><div class="meta">58, 60, 61, 62, 63, 64, 67, 68</div></div>
+    <div class="stat gray"><div class="label">Методика — пунктов</div><div class="value">23</div><div class="meta">группы рисков + процесс</div></div>
+  </div>
+</section>
+
+<!-- ============ Checklist ============ -->
+<section id="checklist">
+  <h2>Таблица 1. Чек-лист КБ AI-агентов и МАС — блок «Особенности AI-агента» (строки 58–68)</h2>
+
+  <div class="card table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>№</th>
+        <th>Вопрос чек-листа</th>
+        <th>Ответ</th>
+        <th>Обоснование (что реально в коде)</th>
+        <th>Подтверждение</th>
+        <th>Рекомендуемое действие</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr>
+        <td class="num">58</td>
+        <td>Реализована ли проверка (санитизация) вводимых пользователем данных перед их обработкой AI-агентом? Если да, то какая?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>Класс <code>Sanitizer</code> (NFC-нормализация, удаление control/zero-width символов) в репозитории есть, но в runtime-потоке не вызывается. В промпт уходит сырой ввод.</td>
+        <td><span class="file">Sanitizer.java:16–35;<br>LlmOrchestrator.java:60–88</span></td>
+        <td>Подключить <code>Sanitizer</code> в цепочку перед <code>LlmOrchestrator.mapMessageHistory(...)</code> для <code>user_input</code> и <code>phrases[].text</code>. Добавить метрику/аудит-событие при модификации.</td>
+      </tr>
+
+      <tr>
+        <td class="num">59</td>
+        <td>Реализованы ли ограничения на длину пользовательского ввода?</td>
+        <td><span class="badge green">Да</span></td>
+        <td>На уровне API/DTO задан <code>maxLength = 2000</code> для <code>user_input</code> и <code>phrases[].text</code>; <code>@Valid @RequestBody</code> в контроллере. При нарушении — 400.</td>
+        <td><span class="file">api.yaml:263, 273;<br>DrmAgentApi (generated);<br>ErrorControllerAdvice.java:36–45</span></td>
+        <td>Задать <code>maxLength</code> и для <code>operator_input</code>. При желании — ограничить суммарную длину <code>phrases[]</code>.</td>
+      </tr>
+
+      <tr>
+        <td class="num">60</td>
+        <td>Реализованы ли guardrails на детекцию промпт-атак?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>Отдельного детектора jailbreak / prompt injection нет. Ограничивающий системный промпт и валидация выхода по <code>enum</code> — это не замена guardrails.</td>
+        <td><span class="file">chat_assistant_prompt;<br>LlmOrchestrator.java:31–57;<br>MessageCensor.java (allow-regex, не детектор)</span></td>
+        <td>Добавить базовый детектор: эвристики на типовые паттерны (<code>ignore previous</code>, <code>system prompt</code>, <code>act as</code>, base64, ZWSP, многоязычные обходы) + событие в аудит + метрика + шаблонный отказ.</td>
+      </tr>
+
+      <tr>
+        <td class="num">61</td>
+        <td>Реализована ли система отложенного детектирования промпт-атак в логах?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>Логирование и метрики есть, но нет отдельного сервиса/правил/алертинга. <code>AuditWriter.logEvent(...)</code> определён, но из main не вызывается.</td>
+        <td><span class="file">logback-spring.xml;<br>AuditWriter.java (logEvent не вызывается);<br>HttpLoggerFilter.java</span></td>
+        <td>Сделать AUDIT-события для: приём запроса, intent-решение, срабатывание sanitizer/censor/guardrail, невалидный ответ LLM. Настроить пост-фактум анализ (SIEM-правила/алерты).</td>
+      </tr>
+
+      <tr>
+        <td class="num">62</td>
+        <td>Ограничения на количество попыток ввода промпта после срабатывания цензора?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>Цензор в runtime-потоке не подключён, поэтому и лимита «после срабатывания» нет.</td>
+        <td><span class="file">MessageCensor.java<br>(не используется в runtime)</span></td>
+        <td>После внедрения цензора/guardrail — ввести счётчик срабатываний в рамках сессии/клиента и блокировку/cool-down при превышении.</td>
+      </tr>
+
+      <tr>
+        <td class="num">63</td>
+        <td>Реализованы ли ограничения на количество попыток ввода промпта?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>Серверного лимита пользовательских повторов нет. <code>maxAttempts = 3</code> в <code>LlmOrchestrator</code> — это внутренний ретрай модели, а не лимит пользователя. Поле <code>retry_number</code> приходит как метаданные, но серверной логикой не используется.</td>
+        <td><span class="file">LlmOrchestrator.java:30–57;<br>api.yaml:300–305</span></td>
+        <td>Ввести rate limit на уровне сервиса (per <code>conversation</code> / <code>digital_user_id</code> / IP), использовать <code>metadata.channel_context.retry_number</code> для enforcement.</td>
+      </tr>
+
+      <tr>
+        <td class="num">64</td>
+        <td>Включен цензор? (profanity_check)</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>Библиотеки/модуля <code>profanity_check</code> в зависимостях нет. <code>MessageCensor</code> — это allow-list regex (проходят пробелы/эмодзи), это не profanity-фильтр и в runtime не подключён.</td>
+        <td><span class="file">build.gradle.kts;<br>MessageCensor.java;<br>MessageCensorTest.java</span></td>
+        <td>Подключить <code>profanity_check</code> (или аналог GigaShield / Moderation) перед вызовом LLM, с метрикой и событием аудита.</td>
+      </tr>
+
+      <tr>
+        <td class="num">65</td>
+        <td>Реализован ли собственный механизм валидации вывода?</td>
+        <td><span class="badge green">Да</span></td>
+        <td>Ответ LLM очищается до латинских букв и приводится к <code>enum ChatActionCode</code>; при невалидном выводе — до 3 корректирующих retry. Клиенту уходят только шаблонные ответы из <code>ChatManagerResponseMapper</code>.</td>
+        <td><span class="file">LlmOrchestrator.java:31–57;<br>ChatManagerResponseMapper.java:38–79;<br>chat_assistant_prompt:13–20, 141–145</span></td>
+        <td>Оставить как есть. Желательно: снизить <code>temperature</code> до <code>0.0–0.2</code> (сейчас <code>0.7</code>), добавить e2e-тесты на корректность action code на типовых и adversarial входах.</td>
+      </tr>
+
+      <tr>
+        <td class="num">66</td>
+        <td>Присутствует ли ручное подтверждение операции пользователем до выполнения или проверка ответа агента до отправки внешнему пользователю (клиенту)?</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td>В ветке <code>communicationBack</code> агент уточняет канал у клиента. В ветках <code>chatBack</code> / <code>callBack</code> задача в IDSS создаётся сразу без отдельного подтверждения. Ответ клиенту шаблонный (это снижает риск), но отдельного human review нет.</td>
+        <td><span class="file">ChatDigitalManagerToolsService.java:13–40;<br>ChatManagerResponseMapper.java:64–79</span></td>
+        <td>Ввести явное подтверждение клиента перед <code>createCommunicationBack</code> (например, suggestions «Подтвердить / Отменить»).</td>
+      </tr>
+
+      <tr>
+        <td class="num">67</td>
+        <td>Реализован ли контроль за потреблением токенов?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>В конфигурации LLM только <code>base-url</code>, <code>model-name</code>, <code>temperature</code>. Нет <code>max_tokens</code>, budget, счётчиков usage, circuit-breaker.</td>
+        <td><span class="file">application.yaml:38–43;<br>LlmConfig.java:24–32</span></td>
+        <td>Задать <code>max_tokens</code> на запрос, завести метрики <code>tokens_in</code> / <code>tokens_out</code>, добавить бюджет на клиента/сессию и аварийное отключение при перерасходе.</td>
+      </tr>
+
+      <tr>
+        <td class="num">68</td>
+        <td>AI-агент использует БД SQL, запрос к которой формируется с использованием GigaChat?</td>
+        <td><span class="badge red">Нет</span></td>
+        <td>В проекте нет JDBC / JPA / DataSource / Liquibase / Flyway и нет SQL-слоя. Внешние интеграции — только GigaChat и IDSS.</td>
+        <td><span class="file">build.gradle.kts;<br>IdssServiceImpl.java</span></td>
+        <td>Действий не требуется. Зафиксировать в ответе КБ: SQL через GigaChat не используется.</td>
+      </tr>
+
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ Methodology ============ -->
+<section id="methodology">
+  <h2>Таблица 2. Методика ч. 1 (ред. 16.02) — соответствие по пунктам</h2>
+  <p class="meta">Итоговый интегральный риск-рейтинг по Методике (п. 4.4, п. 4.9) рассчитывается УОР по заключениям УОР/ДТН/ДКБ/УМР/ПД. Здесь — качественное сопоставление по коду и процессу. Процессные пункты (создание задачи в Jira AIMEN, оценка критичности, КТН, правовая оценка) помечены как «Информационно».</p>
+
+  <div class="card table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Пункт / раздел</th>
+        <th>Что требует Методика (кратко)</th>
+        <th>Соответствие</th>
+        <th>Короткое обоснование по проекту</th>
+        <th>Действие / кто закрывает</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr>
+        <td>п. 1.1</td>
+        <td>Первичная оценка ОР — на этапе проектирования/разработки.</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>Проект на ветке <code>develop</code>. Нужно подтвердить, что оценка запущена в Jira AIMEN до вывода в ПРОМ.</td>
+        <td>Владелец агента: завести задачу AIMEN (п. 5.7).</td>
+      </tr>
+
+      <tr>
+        <td>п. 2 (источники)</td>
+        <td>Источники: код, критичность, КТН, СберОРМ, лицензии.</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td>По коду всё доступно. Извне нужны: критичность, КТН, лицензии, СберОРМ.</td>
+        <td>Владелец агента собирает пакет.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.1 (таксономия)</td>
+        <td>Зафиксировать 4 группы рисков.</td>
+        <td><span class="badge green">Соответствует</span></td>
+        <td>Все группы разобраны в отчёте.</td>
+        <td>—</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 4 — «Превышение автономности»</td>
+        <td>Human-in-the-loop и guardrails при высокой автономности.</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td>Есть эскалация (<code>transferChat</code>). Но <code>createCommunicationBack</code> в IDSS выполняется без явного подтверждения пользователя.</td>
+        <td>Confirm-step перед IDSS (→ строка 66 чек-листа).</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 4 — «Некорректное поведение и использование инструментов»</td>
+        <td>Ограничивать tool surface, валидировать вызовы и выход.</td>
+        <td><span class="badge green">Соответствует</span></td>
+        <td>Tool surface узкий (один IDSS-вызов); выход приведён к <code>enum</code> + retry; клиенту — шаблоны.</td>
+        <td>Снизить <code>temperature</code> до <code>0.0–0.2</code>, добавить adversarial-тесты.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 4 — «Галлюцинации AI-агентов»</td>
+        <td>Валидация выхода и ограничение свободы LLM.</td>
+        <td><span class="badge green">Соответствует</span></td>
+        <td>LLM не пишет клиенту, выход — <code>enum</code>, клиенту идут только шаблонные тексты.</td>
+        <td>—</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 4 — «Дезинформация и манипуляции AI»</td>
+        <td>Не рекомендовать/не консультировать по продуктам без модерации.</td>
+        <td><span class="badge green">Соответствует</span></td>
+        <td>Промпт явно запрещает обсуждать продукты/тарифы/условия. Свободной генерации клиенту нет.</td>
+        <td>—</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 4 — «Токсичность и дискриминация»</td>
+        <td>Контроль контента, модерация.</td>
+        <td><span class="badge green">Соответствует</span></td>
+        <td>Клиенту уходят только шаблоны. Свободный текст LLM наружу не попадает.</td>
+        <td>Опционально: <code>profanity_check</code> для внутренних логов/аналитики.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Деградация знаний и навыков AI-агента»</td>
+        <td>Отслеживать деградацию, если агент дообучается.</td>
+        <td><span class="badge gray">Не применимо</span></td>
+        <td>LoRA / fine-tune не используются.</td>
+        <td>—</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Низкое качество внедряемых AI-агентов»</td>
+        <td>Стандарты разработки, тесты, документация.</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td>Есть Spring Boot + OpenAPI + checkstyle + jacoco + юнит-тесты. Но <code>Sanitizer</code> / <code>MessageCensor</code> / <code>AuditWriter</code> не подключены к runtime — это создаёт иллюзию защиты.</td>
+        <td>Подключить заготовки к runtime или удалить их.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 5 — «Отказ инфраструктуры AI-платформ и сервисов»</td>
+        <td>Оценка ДТН: КТН, критичность AEF/AI HUB, HealthCheck, BCP/Bypass.</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>Есть <code>HealthController</code> (КТН RR-AI-2). Статусы КТН, BCP, Bypass — вне кода.</td>
+        <td>ДТН: заключение в рамках пп. 5.10–5.11.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Взаимное влияние AI-решений на едином ландшафте»</td>
+        <td>Учитывать нагрузку, зацикливания, влияние на соседей.</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>По коду — стандартная HTTP-служба без self-calls и циклов.</td>
+        <td>ДТН: оценка надёжности.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Прямая промпт-инъекция»</td>
+        <td>Защищать AI от манипуляций промптами.</td>
+        <td><span class="badge red">Не соответствует</span></td>
+        <td>Нет runtime-sanitizer, цензора, guardrails, лимита попыток. Частично компенсируется тем, что выход — <code>enum</code>, а клиенту уходят шаблоны.</td>
+        <td>Подключить <code>Sanitizer</code> + <code>MessageCensor</code> + базовый детектор атак + rate limit.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Непрямая промпт-инъекция»</td>
+        <td>Защищать от манипуляций внешними данными (RAG, web, файлы).</td>
+        <td><span class="badge gray">Не применимо</span></td>
+        <td>RAG, web-поиск, парсинг сайтов, file upload — не используются. Вход = системный промпт + история + <code>user_input</code>.</td>
+        <td>—</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Утечки данных через AI-агентов»</td>
+        <td>Минимизировать риск утечки конфиденциальной информации.</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td>Включены <code>logRequests(true)</code> / <code>logResponses(true)</code> у GigaChat + <code>spring.mvc.log-request-details</code> + Feign-logger. В логи могут попадать промпт / история / PII. Политики маскирования в коде нет.</td>
+        <td>Отключить подробное логирование LLM в ПРОМ, ввести маскирование PII, ограничить retention и доступ.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Несанкционированные действия AI-агента»</td>
+        <td>Контроль действий, confirm-step на критичные операции.</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td>Единственный side-effect — <code>createCommunicationBack</code> в IDSS, контракт фиксированный. Подтверждения нет.</td>
+        <td>Confirm-step перед IDSS (→ строка 66 чек-листа).</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Нарушение доступности или исчерпание лимитов»</td>
+        <td>Контроль ресурсов, токенов, rate limiting.</td>
+        <td><span class="badge red">Не соответствует</span></td>
+        <td>Нет контроля токенов, нет rate limit, нет лимита попыток. Только <code>maxLength</code> ввода и внутренние retry.</td>
+        <td>Добавить <code>max_tokens</code>, token-budget, серверный rate limit.</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 — «Нарушение мультиагентного взаимодействия»</td>
+        <td>Защита мультиагентных систем.</td>
+        <td><span class="badge gray">Не применимо</span></td>
+        <td>Мультиагентная схема отсутствует: один агент, общается с GigaChat и IDSS.</td>
+        <td>—</td>
+      </tr>
+
+      <tr>
+        <td>п. 3.3 / Прил. 8 — «Правовые и регуляторные риски»</td>
+        <td>Оценку проводит Правовой департамент (п. 5.8).</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>По коду индикаторов нарушения ИС нет: стандартные зависимости, LoRA/fine-tune нет.</td>
+        <td>Владелец агента: запрос в Правовой департамент при MC/MC+/BC или работе с внешним клиентом.</td>
+      </tr>
+
+      <tr>
+        <td>п. 5.7</td>
+        <td>Регистрация задачи на оценку в Jira AIMEN.</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>Задача должна быть создана владельцем агента.</td>
+        <td>Владелец агента.</td>
+      </tr>
+
+      <tr>
+        <td>п. 5.17</td>
+        <td>Аудит по группе «Безопасность данных и систем» обязателен для всех AI-агентов.</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>Будет проведён УКИИ. С учётом пробелов — высока вероятность назначения тестирования (п. 5.19).</td>
+        <td>Подготовить пакет доработок до встречи с УКИИ.</td>
+      </tr>
+
+      <tr>
+        <td>п. 5.19</td>
+        <td>При высокой/очень высокой оценке — обязательное тестирование.</td>
+        <td><span class="badge gray">Информационно</span></td>
+        <td>Решение — по итогу аудита УКИИ.</td>
+        <td>Предоставить стенд ИФТ/ПСИ (п. 5.22) при необходимости.</td>
+      </tr>
+
+      <tr>
+        <td>Прил. 9 — переоценка</td>
+        <td>Триггеры: изменение системного промпта &gt; 25%, изменение кода инструментов, интеграций, формата ввода, автономности / памяти.</td>
+        <td><span class="badge yellow">Применимо сейчас</span></td>
+        <td>В рабочем дереве — изменения в <code>chat_assistant_prompt</code>, <code>Sanitizer</code> / <code>MessageCensor</code>, <code>api.yaml</code>. Прямые триггеры переоценки.</td>
+        <td>Согласовать с УКИИ единый пакет изменений на аудит / переоценку.</td>
+      </tr>
+
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ Legend ============ -->
+<section id="legend">
+  <h2>Легенда</h2>
+  <div class="legend">
+    <div class="legend-item">
+      <span class="badge green">Да / Соответствует</span>
+      <div>Требование выполнено по текущему коду проекта.</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge yellow">Частично</span>
+      <div>Требование выполнено не полностью или только для части сценариев — нужна доработка.</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge red">Нет / Не соответствует</span>
+      <div>Явный пробел: требование не выполнено. Замечание кибербеза с высокой вероятностью.</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge gray">Не применимо</span>
+      <div>Пункт не относится к архитектуре проекта (RAG / LoRA / мультиагентность отсутствуют).</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge gray">Информационно</span>
+      <div>Процессный пункт: закрывается не кодом, а владельцем агента / УОР / ДТН / УМР / Правовым департаментом.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ How to read ============ -->
+<section id="how">
+  <h2>Как читать отчёт</h2>
+
+  <details>
+    <summary>Что такое «aigw-drm-agent» в одном абзаце</summary>
+    <p>Цифровой привратник / консьерж для клиентов банка. Задача агента — быстро понять, куда направить обращение: начало коммуникации, запрос обратного звонка, запрос обратного чата, вызов к свободному оператору. Модель GigaChat-2-Pro используется только как классификатор — выбирает один из пяти кодов действия. Клиенту уходят только заранее заданные шаблонные сообщения, свободного текста от модели клиент не видит.</p>
+  </details>
+
+  <details>
+    <summary>Почему много «Нет» в чек-листе — это не катастрофа</summary>
+    <p>Основной риск обычного AI-ассистента — свободная генерация текста клиенту. Здесь этот риск закрыт архитектурно: выход модели ограничен <code>enum</code>, клиенту отдаются только шаблоны. Поэтому формально «нет» санитизации / цензора / guardrails в runtime — это реальный пробел по Методике, но не критический потому, что вред от такого агента ограничен сверху узостью его сценария и закрытым набором действий. Доработки из колонки «Рекомендуемое действие» в обоих таблицах закрывают эти пункты и одновременно снижают оценки по группе «Безопасность данных и систем» Методики.</p>
+  </details>
+
+  <details>
+    <summary>Почему для Методики много «Информационно»</summary>
+    <p>Часть пунктов Методики — не про код, а про процесс. Критичность AI-агента считает Калькулятор критичности, степень значимости модели (A/B/C/D/E) валидирует УМР, КТН и BCP — ДТН, правовая оценка — Правовой департамент, финальный риск-рейтинг — УОР по заключениям всех профильных подразделений. Эти пункты невозможно «закрыть» только кодом, поэтому по ним стоит статус «Информационно» с указанием ответственной стороны.</p>
+  </details>
+
+  <details>
+    <summary>Мини-план доработок до встречи с УКИИ</summary>
+    <p>Критично: (1) подключить <code>Sanitizer</code> в runtime; (2) подключить цензор / базовый детектор промпт-атак; (3) добавить rate limit и лимит попыток; (4) добавить контроль токенов (<code>max_tokens</code>, бюджет, метрики); (5) ввести confirm-step перед вызовом IDSS; (6) пересмотреть <code>logRequests/logResponses</code> и маскирование PII в логах. Желательно: снизить <code>temperature</code>, подключить <code>AuditWriter.logEvent</code>, задать <code>maxLength</code> для <code>operator_input</code>.</p>
+  </details>
+</section>
+
+<footer>
+  <p>aigw-drm-agent — внутренний проект ПАО Сбербанк. Отчёт подготовлен для встречи с УКИИ / ДКБ. При обновлении кода пересоберите файл из источника в репозитории.</p>
+</footer>
+
+</div>
+</body>
+</html>
