@@ -229,13 +229,14 @@
 
 <header>
   <h1>aigw-drm-agent — выжимка по проверке КБ</h1>
-  <p class="lead">Цифровой привратник (консьерж) для клиентов банка. Сводка соответствия чек-листу КБ AI-агентов и МАС и Методике проведения интегральной оценки рисков AI-агентов (ч. 1, ред. 16.02).</p>
-  <p class="meta">Подготовлено Claude Opus 4.7 (Max-Thinking) по результатам анализа кода проекта.</p>
+  <p class="lead">Цифровой привратник (консьерж) для клиентов банка. Сводка соответствия чек-листу КБ AI-агентов и МАС, Методике проведения интегральной оценки рисков AI-агентов (ч. 1, ред. 16.02) и подзадачам DRMMMB-61..66 родительской задачи DRMMMB-19 «Оценка рисков».</p>
+  <p class="meta">Подготовлено Claude Opus 4.7 (Max-Thinking) по результатам анализа кода проекта. Таблица 3 — на базе отчёта GPT-5.5 (xhigh) с правками после ревью Claude.</p>
 
   <nav class="toc">
     <a href="#tldr">Кратко</a>
-    <a href="#checklist">Чек-лист (строки 58–68)</a>
-    <a href="#methodology">Методика (ч. 1)</a>
+    <a href="#checklist">Таблица 1. Чек-лист (58–68)</a>
+    <a href="#methodology">Таблица 2. Методика (ч. 1)</a>
+    <a href="#risk-assessment">Таблица 3. DRMMMB-61..66</a>
     <a href="#legend">Легенда</a>
     <a href="#how">Как читать</a>
   </nav>
@@ -583,6 +584,98 @@
   </div>
 </section>
 
+<!-- ============ Risk assessment (DRMMMB-61..66) ============ -->
+<section id="risk-assessment">
+  <h2>Таблица 3. Оценка рисков по подзадачам DRMMMB-61..66 («Оценка рисков»)</h2>
+  <p class="meta">Дополнительный набор критериев из родительской задачи <code>DRMMMB-19</code> для КЭ <code>AEF Containers AI-Цифровой клиентский менеджер ММБ (13204700)</code>. Подзадачи проверяют наличие в агенте механизмов: HealthCheck, Retry, StopEvent, трейс действий, уникальная идентификация операций, предотвращение зацикливаний. Все подзадачи имеют статус <code>OPEN / Unresolved / Security Level K-3</code>. Оценка выполнена по коду на ветке <code>develop</code>, HEAD <code>997abdb</code>.</p>
+
+  <div class="summary">
+    <div class="stat green"><div class="label">Соответствует</div><div class="value">0 / 6</div><div class="meta">—</div></div>
+    <div class="stat yellow"><div class="label">Частично</div><div class="value">3 / 6</div><div class="meta">DRMMMB-64, 65, 66</div></div>
+    <div class="stat red"><div class="label">Не соответствует</div><div class="value">3 / 6</div><div class="meta">DRMMMB-61, 62, 63</div></div>
+    <div class="stat gray"><div class="label">Приоритеты</div><div class="value">2 P0 · 4 P1</div><div class="meta">P0 — 62, 63</div></div>
+  </div>
+
+  <div class="card table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Jira</th>
+        <th>Критерий</th>
+        <th>Оценка</th>
+        <th>Приор.</th>
+        <th>Обоснование (что в коде)</th>
+        <th>Подтверждение</th>
+        <th>Рекомендуемое действие</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr>
+        <td><code>DRMMMB-61</code></td>
+        <td>Реализован <strong>HealthCheck</strong></td>
+        <td><span class="badge red">Не соответствует</span></td>
+        <td><span class="badge yellow">P1</span></td>
+        <td>Текущий <code>/health</code> — техническая заглушка: <code>HealthController.health()</code> всегда возвращает 200 и не зависит от состояния GigaChat, IDSS, LLM-классификации или прикладной контрольной корзины. Spring Boot Actuator подключён, но readiness/liveness-группы и <code>HealthIndicator</code>'ы для зависимостей не настроены. Контрольной корзины из ≥3 прикладных проверок нет. <strong>Пробел:</strong> endpoint работоспособен ровно тогда, когда поднят Spring, поэтому не выявляет неработоспособность агента и не может использоваться балансировщиком/AI-Hub для вывода из-под нагрузки.</td>
+        <td><span class="file">HealthController.java:11–13;<br>build.gradle.kts (spring-boot-starter-actuator);<br>application.yaml:1–43</span></td>
+        <td>Реализовать настоящий HealthCheck: техническая готовность приложения, доступность GigaChat/IDSS, минимум 3 контрольных сценария классификации, readiness/liveness-группы и отчётность в AI-Hub. При провале прикладной проверки readiness должен становиться отрицательным.</td>
+      </tr>
+
+      <tr>
+        <td><code>DRMMMB-62</code></td>
+        <td>Реализован <strong>Retry</strong></td>
+        <td><span class="badge red">Не соответствует</span></td>
+        <td><span class="badge red">P0</span></td>
+        <td>Управляемого retry с backoff/jitter нет. Внутренний <code>maxAttempts = 3</code> в <code>LlmOrchestrator</code> исправляет только невалидный текстовый ответ модели и неприменим как retry временной недоступности: <code>chatModel.chat(...)</code> расположен <em>до</em> try-блока. <code>FeignConfig</code> кастомизирует только логгер, <code>Retryer</code> не задан; дефолты Feign не дают требуемой политики по 429/5xx, jitter и классификации ошибок. <code>langchain4j-gigachat</code> поверх HttpClient также не настроен на retry — в <code>LlmConfig</code> только <code>logRequests/logResponses</code> и базовые параметры модели. <strong>Пробел:</strong> нет классификации transient/non-transient, нет задержек, нет jitter, нет метрик <code>retry_count</code> / <code>retry_exhausted</code>.</td>
+        <td><span class="file">LlmOrchestrator.java:31–57;<br>IdssServiceImpl.java:21–36;<br>FeignConfig.java:9–12;<br>LlmConfig.java:24–32</span></td>
+        <td>Ввести Resilience4j / Spring Retry или явный Feign <code>Retryer</code>: <code>maxAttempts</code>, exponential backoff, jitter, retry только на 429/5xx/timeout. Для GigaChat — аналогичная policy-обёртка вокруг <code>chatModel.chat(...)</code>, content-correction loop оставить отдельным механизмом.</td>
+      </tr>
+
+      <tr>
+        <td><code>DRMMMB-63</code></td>
+        <td>Реализован <strong>StopEvent</strong></td>
+        <td><span class="badge red">Не соответствует</span></td>
+        <td><span class="badge red">P0</span></td>
+        <td>В контракте и коде не найдено поле/событие <code>StopEvent</code>, отдельная обработка <code>429</code> / <code>503</code> или отказа GigaPlatform. Ошибки LLM/IDSS уходят в общий <code>DrmAgentException</code> и далее в <code>500</code> / <code>failure</code>. <strong>Пробел:</strong> нет <code>StopEvent</code> в API/state/metadata, нет circuit-breaker / cooldown, нет понятного клиентского fallback или перевода на оператора.</td>
+        <td><span class="file">LlmOrchestrator.java:34;<br>ChatDigitalManager.java:71–72;<br>ErrorControllerAdvice.java:24–43;<br>api.yaml</span></td>
+        <td>Согласовать контракт <code>StopEvent</code> с GigaPlatform/AI-Hub: распознавать <code>429</code> / <code>503</code> / stop-сигнал, прекращать выполнение, возвращать управляемый отказ или transfer, писать метрику и audit-событие.</td>
+      </tr>
+
+      <tr>
+        <td><code>DRMMMB-64</code></td>
+        <td>Формирование <strong>трейса</strong> действий агента</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td><span class="badge yellow">P1</span></td>
+        <td>Есть базовый сквозной <code>rqUId</code> в MDC, лог входящего/исходящего HTTP и Feign request/response. <code>AuditWriter</code> реализован, но его <code>logEvent(...)</code> не вызывается из main-кода. Единого трейса действий со span'ами LLM/IDSS, результатом, control-параметрами и parent-child связями нет. Единственный side-effect — <code>createCommunicationBack</code> в IDSS — не получает <code>rollback flag</code> в trace; метрика <code>create_communication_back = 0/1</code> не заменяет trace. <strong>Пробел:</strong> нет <code>span-id / operation-id</code> на каждый шаг, нет фиксации LLM decision, IDSS result, <code>Hop/TTL/StopEvent</code>.</td>
+        <td><span class="file">MdcFilter.java:27–64;<br>HttpLoggerFilter.java:53–66;<br>CustomFeignLogger.java:29–52;<br>AuditWriter.java:35–37;<br>ChatDigitalManagerToolsService.java:18–20, 40;<br>IdssServiceImpl.java:38</span></td>
+        <td>Ввести структурированный trace/span: <code>request_received</code>, <code>llm_called</code>, <code>intent_selected</code>, <code>idss_called</code>, <code>response_sent</code>, <code>stop/retry/ttl</code> events. Для изменяющих вызовов фиксировать <code>rollback_possible</code> / <code>rollback_action</code> / <code>rollback_status</code>. Подключить <code>AuditWriter</code> и маскирование PII в payload.</td>
+      </tr>
+
+      <tr>
+        <td><code>DRMMMB-65</code></td>
+        <td>Уникальная <strong>идентификация операций</strong></td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td><span class="badge yellow">P1</span></td>
+        <td>В API есть <code>x-trace-id</code>, <code>conversation_id</code> и <code>reply_with</code>; response мапит <code>conversation_id</code> и <code>in_reply_to</code>. Feign-interceptor прокидывает <code>x-trace-id</code> в заголовок внешнего вызова. Но нет отдельного UID каждой внутренней операции агента и явного <code>parent_operation_uid → operation_uid</code> для LLM/IDSS/ответа. <strong>Дефект корреляции:</strong> <code>CommunicationBackRequest</code> генерирует <em>новый</em> <code>rqUId</code> в теле запроса к IDSS через <code>UUID.randomUUID()</code>, никак не связывая его с родительским <code>x-trace-id</code> / MDC — даже если заголовок <code>x-trace-id</code> прокинут корректно, body-<code>rqUId</code> разрывает цепочку.</td>
+        <td><span class="file">api.yaml:24–31, 233–242, 513–522;<br>ChatManagerResponseMapper.java:22–25;<br>HeadersFeignInterceptor.java:13–20;<br>CommunicationBackRequest.java:16–18</span></td>
+        <td>Добавить <code>operation_uid</code> для каждого шага и <code>parent_operation_uid</code> в trace/audit. Для IDSS не генерировать независимый <code>body.rqUId</code> без связи с родителем: передавать связанный <code>operation_uid</code> или явно сохранять mapping <code>parent x-trace-id → idss rqUId → actionCode</code>.</td>
+      </tr>
+
+      <tr>
+        <td><code>DRMMMB-66</code></td>
+        <td>Предотвращение <strong>зацикливаний</strong> и чрезмерных взаимодействий</td>
+        <td><span class="badge yellow">Частично</span></td>
+        <td><span class="badge yellow">P1</span></td>
+        <td>Архитектурно агент сейчас single-pass: <code>MessageRouter.route(...)</code> → <code>ChatDigitalManager.answer(...)</code> → один вызов LLM и не более одного вызова IDSS, без self-call и циклов между агентами. Поэтому <strong>Hop</strong> менее актуален для текущей реализации. При этом <code>TTL</code> / deadline на отдельный вызов LLM/IDSS отсутствует, <code>StopEvent</code> отсутствует, <code>metadata.channel_context.retry_number</code> есть в OpenAPI, но сервером не используется для enforcement. <code>maxAttempts = 3</code> относится только к исправлению невалидного <code>actionCode</code>.</td>
+        <td><span class="file">MessageRouter.java:38–60;<br>ChatDigitalManager.java:40–70;<br>LlmOrchestrator.java:31–57;<br>api.yaml:296–305</span></td>
+        <td>В первую очередь добавить <code>deadline</code> / <code>TTL</code> на вызовы GigaChat и IDSS, обработку <code>StopEvent</code> и серверное соблюдение <code>retry_number</code> как лимита повторных обращений клиента. <code>Hop</code> / <code>hop_limit</code> держать в контракте как задел для будущих multi-hop сценариев, но не делать главным механизмом до их появления.</td>
+      </tr>
+
+    </tbody>
+  </table>
+  </div>
+</section>
+
 <!-- ============ Legend ============ -->
 <section id="legend">
   <h2>Легенда</h2>
@@ -630,8 +723,14 @@
   </details>
 
   <details>
+    <summary>Чем Таблица 3 отличается от Таблицы 1 и Таблицы 2</summary>
+    <p>Таблица 1 — общий чек-лист КБ AI-агентов и МАС (фиксированные строки 58–68). Таблица 2 — Методика интегральной оценки рисков (ч. 1, ред. 16.02), ракурс «группа риска». Таблица 3 — это <em>проектные</em> критерии из родительской задачи <code>DRMMMB-19</code>: 6 подзадач (HealthCheck, Retry, StopEvent, трейс, операционный UID, предотвращение зацикливаний), которые уже заведены в Jira как обязательные доработки именно для этого КЭ. Здесь P0/P1 — приоритет реализации, а не severity. Таблицы пересекаются в нескольких местах (например, контроль токенов / rate limit из Таблицы 1 близок к Retry/StopEvent из Таблицы 3), но смотрят на агент с разных сторон и закрываются разными артефактами.</p>
+  </details>
+
+  <details>
     <summary>Мини-план доработок до встречи с УКИИ</summary>
-    <p>Критично: (1) подключить <code>Sanitizer</code> в runtime; (2) подключить цензор / базовый детектор промпт-атак; (3) добавить rate limit и лимит попыток; (4) добавить контроль токенов (<code>max_tokens</code>, бюджет, метрики); (5) ввести confirm-step перед вызовом IDSS; (6) пересмотреть <code>logRequests/logResponses</code> и маскирование PII в логах. Желательно: снизить <code>temperature</code>, подключить <code>AuditWriter.logEvent</code>, задать <code>maxLength</code> для <code>operator_input</code>.</p>
+    <p>Критично из чек-листа: (1) подключить <code>Sanitizer</code> в runtime; (2) подключить цензор / базовый детектор промпт-атак; (3) добавить rate limit и лимит попыток; (4) добавить контроль токенов (<code>max_tokens</code>, бюджет, метрики); (5) ввести confirm-step перед вызовом IDSS; (6) пересмотреть <code>logRequests/logResponses</code> и маскирование PII в логах. Желательно: снизить <code>temperature</code>, подключить <code>AuditWriter.logEvent</code>, задать <code>maxLength</code> для <code>operator_input</code>.</p>
+    <p>Критично из DRMMMB-61..66 (P0): (a) Retry с backoff/jitter для GigaChat и IDSS (<code>DRMMMB-62</code>); (b) обработка <code>StopEvent</code> / <code>429</code> / <code>503</code> от GigaPlatform с управляемым отказом (<code>DRMMMB-63</code>). P1 — настоящий HealthCheck с контрольной корзиной, структурированный trace c rollback flag, <code>operation_uid</code> / <code>parent_operation_uid</code> и устранение разрыва корреляции в <code>CommunicationBackRequest</code>, TTL/deadline на LLM/IDSS и enforcement <code>retry_number</code>.</p>
   </details>
 </section>
 
